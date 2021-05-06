@@ -1,0 +1,10 @@
+// Arithmetic Testing - A System-X Demo
+// Suraj Khati (6 May, 2021)
+
+	SET	$A	HELLO^S
+	ADD	$A	#WORLD!
+	GET	$A
+
+	PRINT
+
+	HALT

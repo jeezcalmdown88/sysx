@@ -1,0 +1,10 @@
+// Hello, World! - A System-X Demo
+// Suraj Khati (6 May, 2021)
+
+	SET	$A	HELLO, WORLD!
+
+_SECTION .START
+	GET	$A
+	PRINT
+
+	HALT
