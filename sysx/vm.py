@@ -18,6 +18,12 @@
 
 import math
 
+class InvalidInstruction:
+	pass
+
+class InvalidRegister:
+	pass
+
 class Register:
 	def __init__(self):
 		self.__intpart = 0
@@ -39,13 +45,16 @@ class Register:
 		elif reg_type == '$':
 			self.__strpart = str(value)
 		elif reg_type == '@':
-			if (type(value) == str and value.isnumeric()) or (type(value) == float or type(value) == int):
+			if (type(value) == str and value.replace('.', '').isnumeric()) or (type(value) == float or type(value) == int):
 				self.__fltpart = float(value)
 		else:
 			print("Error: {} is not a valid value for {}.".format(value, reg_type))
 
+	def resetReg(self):
+		self.__init__()
+
 	def __str__(self):
-		return "{}, {}, {}".format(self.__intpart, self.__strpart, self.__fltpart)
+		return "{} {} {}".format(str(self.__intpart).ljust(8), self.__strpart.ljust(16), str(self.__fltpart).ljust(8))
 
 def identifyRegister(character):
 	if character.isdigit():
@@ -134,8 +143,8 @@ class VirtualMachine:
 
 	def softReset(self):
 
-		for register in self.__registers():
-			register.__init__()
+		for register in self.__registers:
+			register.resetReg()
 
 		self.__stack = Stack()
 		
@@ -168,7 +177,7 @@ class VirtualMachine:
 
 					else:
 						self.__section_dict[args[1]] = i
-						self.__program[i] = 'REM ({})'.format(self.__program[i])
+						self.__program[i] = 'NOTE ({})'.format(self.__program[i])
 
 		return True
 
@@ -269,8 +278,18 @@ class VirtualMachine:
 					# Immediate Arithmetic
 					if reg2_type == '#':
 						lvalue = self.__registers[reg1_index].getReg(reg1_type)
-						rvalue = args[1][1:]
+
+						# Remember that Register F will be used for Intermediate Arithmetic.
+						# They will be automatically cleared after the operation, but still
+						# be careful to not make a collision somehow.
+
+						self.__registers[identifyRegister('F')].setReg(reg1_type, args[1][1:])
+						rvalue = self.__registers[identifyRegister('F')].getReg(reg1_type)
 						self.__registers[reg1_index].setReg(reg1_type, lvalue + rvalue)
+
+						# Clearing Register F
+
+						self.__registers[identifyRegister('F')].resetReg()
 
 					# Register Arithmetic
 					else:
@@ -285,10 +304,12 @@ class VirtualMachine:
 								print("Error: Cannot add {} and {}.".format(reg1_type, reg2_type))
 
 						else:
-							print("Error: '{}' is not a valid register".format(args[0]))		
+							print("Error: '{}' is not a valid register".format(args[1]))
+							raise InvalidRegister
 
 				else:
 					print("Error: '{}' is not a valid register".format(args[0]))
+					raise InvalidRegister()
 			else:
 				print("Error: Invalid number of arguments.")
 
@@ -299,17 +320,26 @@ class VirtualMachine:
 		elif command == "DIV":
 			pass
 
-		elif command in ["REM", "//"]:
+		elif command in ["NOTE", "--"]:
 			pass
 
+		# Debugging Instructions
+		# So that I would'nt have to invoke the functions from here.
+
+		elif command in ["_DEBUG_VIEW_REG", "DBR"]:
+			self.printRegs()
+
+		elif command in ["_DEBUG_VIEW_MEM", "DBM"]:
+			self.printMemArray()
+
+		elif command in ["_DEBUG_RESET", "DBRST", "_INIT_VM"]:
+			self.softReset()
+
 		else:
-			print("Error: '{}' not understood.".format(command))
-			self.__running = False
+			print("Error: Line ({}) '{}' not understood.".format(self.__ip, command))
+			raise InvalidInstruction
 
 	def runProgram(self):
-
-		if not self.preprocessCode():
-			return
 
 		self.__running = True
 		
@@ -337,25 +367,24 @@ class VirtualMachine:
 		file.close()
 
 	def playground(self):
-		'''
-		while True:
-			self.executeInstruction(input("> "))
-		'''
 
 		self.loadProgamFromMemory("arithmetic")
 
-		print("Program: ")
-		self.printProgram()
-		print()
-
-		print("Output:")
-
 		try:
+			if not self.preprocessCode():
+				return
+
+			print("Program: ")
+			self.printProgram()
+			print()
+
+			print("Output:")
+
 			self.runProgram()
 			print("\nMessage: Successfully executed.")
 
-		except KeyboardInterrupt:
-			print("\nMessage: Program terminated prematurely.")
+		except:
+			print("\nMessage: Program terminated prematurely at line ({}).".format(self.__ip))
 			self.__running = False
 
 	def printProgram(self):
@@ -379,6 +408,8 @@ class VirtualMachine:
 			print()
 
 	def printRegs(self):
+		print("{} {} {}".format("%".ljust(8), "$".ljust(16), "@".ljust(8)))
+		print("-" * (8 + 16 + 8))
 		for register in self.__registers:
 			print(register)
 
